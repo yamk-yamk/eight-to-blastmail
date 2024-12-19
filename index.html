@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CSV変換ツール</title>
+</head>
+
+<body>
+    <h1>CSV変換ツール</h1>
+    <input type="file" id="csvInput" accept=".csv">
+    <button id="downloadBtn" style="display:none;">変換後CSVダウンロード</button>
+
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script>
+        document.getElementById('csvInput').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                complete: (results) => {
+                    const data = results.data;
+
+                    // ヘッダー行の特定
+                    const headers = data[0];
+                    // 必要な列名
+                    const neededCols = ["会社名", "部署名", "役職", "氏名", "e-mail", "郵便番号", "住所", "TEL会社", "携帯電話", "URL", "名刺交換日"];
+
+                    // ヘッダーからインデックスを取得
+                    const colIndexMap = {};
+                    neededCols.forEach(col => {
+                        colIndexMap[col] = headers.indexOf(col);
+                    });
+
+                    // 名刺交換日列のインデックス取得（これ以降がタグ候補列）
+                    const meisikoukanIndex = colIndexMap["名刺交換日"];
+
+                    // データ変換
+                    const output = [];
+                    // 新しいヘッダー行
+                    const newHeaders = [...neededCols, "タグ"];
+                    output.push(newHeaders);
+
+                    for (let i = 1; i < data.length; i++) {
+                        const row = data[i];
+                        if (row.length === 0 || row.join('').trim() === '') {
+                            // 空行の場合はスキップ
+                            continue;
+                        }
+
+                        // 必要な列を抽出
+                        const newRow = neededCols.map(col => row[colIndexMap[col]] || "");
+
+                        // タグ列生成
+                        // 名刺交換日以降の列で"1"や何らかのフラグが入っている列の列名をタグとして収集
+                        const tags = [];
+                        for (let c = meisikoukanIndex + 1; c < headers.length; c++) {
+                            if (row[c] && row[c].trim() !== "" && row[c].trim() !== "0") {
+                                // 値が空でなく0でもない場合、あるいは"1"などのフラグが立っているとみなして列名をタグに追加
+                                tags.push(headers[c]);
+                            }
+                        }
+
+                        newRow.push(tags.join(","));
+                        output.push(newRow);
+                    }
+
+                    // 再度CSV化
+                    const csvString = Papa.unparse(output);
+
+                    // ダウンロード用リンク生成
+                    const blob = new Blob([csvString], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const downloadBtn = document.getElementById('downloadBtn');
+                    downloadBtn.style.display = 'inline-block';
+                    downloadBtn.onclick = () => {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'converted.csv';
+                        a.click();
+                    };
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>
